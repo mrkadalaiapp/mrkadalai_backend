@@ -10,24 +10,19 @@ if (!DB_URI) {
   throw new Error("Missing DATABASE_URL in environment");
 }
 
-// Load the AWS RDS CA certificate
-const caCertPath = path.resolve('./ap-south-1-bundle.pem'); // Adjust path if needed
-const caCert = fs.readFileSync(caCertPath).toString();
-
+// SSL: RDS requires encrypted connections (even via SSH tunnel).
+// rejectUnauthorized:false skips cert validation — tunneled locally, safe to do.
 const pool = new Pool({
   connectionString: DB_URI,
-  ssl: {
-    rejectUnauthorized: false, // Enforce certificate validation
-    ca: caCert, // AWS RDS CA certificate
-  },
+  ssl: { rejectUnauthorized: false },
   keepAlive: true,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 50000,
 });
 
 pool.on("error", (err, client) => {
-  console.error("Unexpected error on idle client:", err.stack);
-  process.exit(-1); // Crash & restart
+  console.error("Unexpected error on idle client:", err.message);
+  // Don't crash on idle client errors
 });
 
 pool

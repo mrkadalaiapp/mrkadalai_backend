@@ -4,7 +4,9 @@ import { outletAddStaff,getOutletStaff,outletStaffPermission,outletDeleteStaff,o
 import { getProducts,addProduct,deleteProduct, updateProduct } from '../controllers/superadmin/product.controller.js';
 import { outletTotalOrders } from '../controllers/superadmin/order.controller.js';
 import { getStocks,addStock,deductStock,stockHistory} from '../controllers/superadmin/inventory.controller.js';
-import { getExpenses,addExpense,getExpenseByDate } from '../controllers/superadmin/expense.controller.js';
+import { getExpenses, addExpense, uploadBillImage, getExpenseByDate, getExpenseCategories, createExpenseCategory, deleteExpenseCategory, getExpenseNames, createExpenseName, deleteExpenseName, getVendors, createVendor, deleteVendor } from '../controllers/superadmin/expense.controller.js';
+import { getInventoryItems, createInventoryItem, updateInventoryItem, deleteInventoryItem, manualAddStock, manualDeductStock, getInventoryItemHistory } from '../controllers/superadmin/inventoryItem.controller.js';
+import { getProductRecipe, saveProductRecipe, deleteRecipeRow } from '../controllers/superadmin/recipe.controller.js';
 import { getCustomersWithWallet,getRechargeHistoryByOutlet,getOrdersPaidViaWallet } from '../controllers/superadmin/wallet.controller.js';
 import { getOutletCustomers } from '../controllers/superadmin/customer.controller.js';
 import { getTickets,ticketClose } from '../controllers/superadmin/ticket.controller.js';
@@ -52,16 +54,40 @@ superadminRouter.put('/outlets/update-product/:id', restrictToSuperAdminOrAdmin,
 //Order management
 superadminRouter.get('/outlets/:outletId/orders/', restrictToSuperAdminOrAdmin, outletTotalOrders);
 
-//Inventory management
+//Inventory management (legacy - product-based, kept for safety)
 superadminRouter.get('/outlets/get-stocks/:outletId', restrictToSuperAdminOrAdmin, getStocks);
 superadminRouter.post('/outlets/add-stocks/', restrictToSuperAdminOrAdmin, addStock);
 superadminRouter.post('/outlets/deduct-stocks/', restrictToSuperAdminOrAdmin, deductStock);
 superadminRouter.post('/outlets/get-stock-history', restrictToSuperAdminOrAdmin, stockHistory);
 
+// New InventoryItem (raw-material) management
+superadminRouter.get('/outlets/inventory-items/:outletId', restrictToSuperAdminOrAdmin, getInventoryItems);
+superadminRouter.post('/outlets/inventory-items/', restrictToSuperAdminOrAdmin, createInventoryItem);
+superadminRouter.put('/outlets/inventory-items/:id', restrictToSuperAdminOrAdmin, updateInventoryItem);
+superadminRouter.delete('/outlets/inventory-items/:id', restrictToSuperAdminOrAdmin, deleteInventoryItem);
+superadminRouter.post('/outlets/inventory-items/manual-add-stock', restrictToSuperAdminOrAdmin, manualAddStock);
+superadminRouter.post('/outlets/inventory-items/manual-deduct-stock', restrictToSuperAdminOrAdmin, manualDeductStock);
+superadminRouter.post('/outlets/inventory-items/history', restrictToSuperAdminOrAdmin, getInventoryItemHistory);
+
+// Recipe management
+superadminRouter.get('/outlets/products/:productId/recipe', restrictToSuperAdminOrAdmin, getProductRecipe);
+superadminRouter.post('/outlets/products/:productId/recipe', restrictToSuperAdminOrAdmin, saveProductRecipe);
+superadminRouter.delete('/outlets/products/recipe/:recipeId', restrictToSuperAdminOrAdmin, deleteRecipeRow);
+
 //Expense Management
-superadminRouter.post('/outlets/add-expenses/', restrictToSuperAdminOrAdmin, addExpense);
+superadminRouter.post('/outlets/add-expenses/', restrictToSuperAdminOrAdmin, uploadBillImage, addExpense);
 superadminRouter.get('/outlets/get-expenses/:outletId/', restrictToSuperAdminOrAdmin, getExpenses);
-superadminRouter.get('/outlets/get-expenses-bydate/', restrictToSuperAdminOrAdmin, getExpenseByDate);
+superadminRouter.post('/outlets/get-expense-by-date/', restrictToSuperAdminOrAdmin, getExpenseByDate);
+// Expense Masters
+superadminRouter.get('/outlets/expense-categories/:outletId', restrictToSuperAdminOrAdmin, getExpenseCategories);
+superadminRouter.post('/outlets/expense-categories/', restrictToSuperAdminOrAdmin, createExpenseCategory);
+superadminRouter.delete('/outlets/expense-categories/:id', restrictToSuperAdminOrAdmin, deleteExpenseCategory);
+superadminRouter.get('/outlets/expense-names/:outletId', restrictToSuperAdminOrAdmin, getExpenseNames);
+superadminRouter.post('/outlets/expense-names/', restrictToSuperAdminOrAdmin, createExpenseName);
+superadminRouter.delete('/outlets/expense-names/:id', restrictToSuperAdminOrAdmin, deleteExpenseName);
+superadminRouter.get('/outlets/vendors/:outletId', restrictToSuperAdminOrAdmin, getVendors);
+superadminRouter.post('/outlets/vendors/', restrictToSuperAdminOrAdmin, createVendor);
+superadminRouter.delete('/outlets/vendors/:id', restrictToSuperAdminOrAdmin, deleteVendor);
 
 //Wallet Management
 superadminRouter.get('/outlets/wallet-history/:outletId/', restrictToSuperAdminOrAdmin, getCustomersWithWallet);

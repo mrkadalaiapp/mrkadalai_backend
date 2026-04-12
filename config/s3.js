@@ -10,13 +10,13 @@ AWS.config.update({
 
 export const s3 = new AWS.S3();
 
-export const uploadImage = async (fileBuffer, fileName) => {
+export const uploadImage = async (fileBuffer, fileName, mimetype) => {
   const params = {
     Bucket: process.env.AWS_BUCKET_NAME,
     Key: `${crypto.randomBytes(16).toString("hex")}-${fileName}`,
     Body: fileBuffer,
     ACL: "public-read",
-    ContentType: fileBuffer.mimetype || "image/jpeg",
+    ContentType: mimetype || fileBuffer.mimetype || "image/jpeg",
   };
 
   const data = await s3.upload(params).promise();

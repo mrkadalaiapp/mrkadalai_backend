@@ -752,30 +752,44 @@ export const customerAppOrder = async (req, res) => {
       }
 
       const stockValidationErrors = [];
-      const inventoryUpdates = [];
+      const aggregatedRequirements = {};
+
       for (const item of items) {
-        const inventory = await tx.inventory.findUnique({
+        const recipe = await tx.productRecipe.findMany({
           where: { productId: item.productId },
+          include: { inventoryItem: true },
         });
-        if (!inventory) {
-          stockValidationErrors.push(`Product ${item.productId} not found in inventory`);
+
+        if (recipe.length === 0) {
+          stockValidationErrors.push(`Product #${item.productId} recipe mapping not configured`);
           continue;
         }
-        if (inventory.quantity < item.quantity) {
-          stockValidationErrors.push(
-            `Insufficient stock for product ${item.productId}. Available: ${inventory.quantity}, Requested: ${item.quantity}`
-          );
-          continue;
+
+        for (const row of recipe) {
+          const requiredQty = row.quantityPerServing * item.quantity;
+          const itemId = row.inventoryItemId;
+
+          if (!aggregatedRequirements[itemId]) {
+            aggregatedRequirements[itemId] = {
+              required: 0,
+              available: row.inventoryItem.currentStock,
+              itemName: row.inventoryItem.itemName,
+            };
+          }
+          aggregatedRequirements[itemId].required += requiredQty;
         }
-        inventoryUpdates.push({
-          productId: item.productId,
-          currentStock: inventory.quantity,
-          requestedQuantity: item.quantity,
-          newStock: inventory.quantity - item.quantity,
-        });
       }
+
+      for (const [itemId, data] of Object.entries(aggregatedRequirements)) {
+        if (data.available < data.required) {
+          stockValidationErrors.push(
+            `Insufficient raw material for ${data.itemName}. Available: ${data.available}, Required: ${data.required}`
+          );
+        }
+      }
+
       if (stockValidationErrors.length > 0) {
-        throw new Error(`Stock validation failed: ${stockValidationErrors.join(', ')}`);
+        throw new Error(`Stock validation failed: ${stockValidationErrors.join(' | ')}`);
       }
 
       let walletTransaction = null;
@@ -807,20 +821,7 @@ export const customerAppOrder = async (req, res) => {
         });
       }
 
-      for (const update of inventoryUpdates) {
-        await tx.inventory.update({
-          where: { productId: update.productId },
-          data: { quantity: update.newStock },
-        });
-        await tx.stockHistory.create({
-          data: {
-            productId: update.productId,
-            outletId,
-            quantity: update.requestedQuantity,
-            action: 'REMOVE',
-          },
-        });
-      }
+      // Inventory deductions are deferred until after the Order is successfully created using tx.inventoryItem!
 
       const deliveryInput = requestedDeliveryDate ?? req.body.deliveryDate ?? req.body.deliverydate;
       let orderDeliveryDate;
@@ -879,6 +880,34 @@ export const customerAppOrder = async (req, res) => {
         data: { orderCount: { increment: 1 } },
       });
 
+      // ── Recipe-based inventory deduction ──
+      for (const item of items) {
+        const recipe = await tx.productRecipe.findMany({
+          where: { productId: item.productId },
+          include: { inventoryItem: true },
+        });
+
+        for (const row of recipe) {
+          const deductQty = row.quantityPerServing * item.quantity;
+          await tx.inventoryItem.update({
+            where: { id: row.inventoryItemId },
+            data: { currentStock: { decrement: deductQty } },
+          });
+          await tx.inventoryItemHistory.create({
+            data: {
+              inventoryItemId: row.inventoryItemId,
+              outletId: parseInt(outletId),
+              movementType: 'OUTWARD',
+              quantity: deductQty,
+              unit: row.unit,
+              source: 'APP_ORDER',
+              referenceId: `ORD-${order.id}`,
+              remarks: `App order: ${item.quantity}x product #${item.productId}`,
+            },
+          });
+        }
+      }
+
       const cart = await tx.cart.findUnique({
         where: { customerId },
       });
@@ -906,7 +935,7 @@ export const customerAppOrder = async (req, res) => {
       return {
         order,
         walletTransaction,
-        stockUpdates: inventoryUpdates,
+        stockUpdates: [],
         couponDiscount,
         razorpayPaymentId,
       };

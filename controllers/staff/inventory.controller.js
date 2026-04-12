@@ -1,163 +1,143 @@
 import prisma from "../../prisma/client.js";
 
-export const getStocks = async (req, res, next) => {
+export const getStocks = async (req, res) => {
   const outletId = parseInt(req.params.outletId);
-  if (!outletId) return res.status(400).json({ message: "Provide outletId" })
+  if (!outletId) return res.status(400).json({ message: "Provide outletId" });
+
   try {
-    const products = await prisma.product.findMany({
-      where: { outletId },
-      include: {
-        inventory: true,
-      }
+    const items = await prisma.inventoryItem.findMany({
+      where: { outletId, status: "ACTIVE" },
+      orderBy: { itemName: "asc" },
     });
 
-    if (!products || products.length === 0) {
-      return res.status(200).json({ message: "No products found for this outlet." });
-    }
-
-    const stockInfo = products.map(prod => ({
-      id: prod.id,
-      name: prod.name,
-      category: prod.category,
-      price: prod.price,
-      quantity: prod.inventory?.quantity ?? 0,
-      threshold: prod.inventory?.threshold ?? 0,
+    const stocks = items.map((item) => ({
+      id: item.id,
+      name: item.itemName,
+      category: item.itemCategory,
+      stockUnit: item.stockUnit,
+      currentStock: item.currentStock,
+      reorderThreshold: item.reorderThreshold,
+      costPerUnit: item.costPerUnit,
+      stockStatus:
+        item.currentStock === 0
+          ? "OUT_OF_STOCK"
+          : item.currentStock <= item.reorderThreshold
+          ? "LOW_STOCK"
+          : "HEALTHY",
     }));
 
-    return res.status(200).json({ stocks: stockInfo });
+    return res.status(200).json({ stocks });
   } catch (err) {
     console.error("Error fetching stocks:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
+export const addStock = async (req, res) => {
+  const { inventoryItemId, outletId, addedQuantity, remarks } = req.body;
 
-export const addStock = async (req, res, next) => {
-  const { productId, outletId, addedQuantity } = req.body;
-
-  if (!productId || !outletId || !addedQuantity) {
+  if (!inventoryItemId || !outletId || !addedQuantity) {
     return res.status(400).json({ message: "Required fields are missing" });
   }
 
-  if (isNaN(productId) || isNaN(outletId) || isNaN(addedQuantity)) {
-    return res.status(400).json({ message: "Invalid number in request" });
-  }
-
   try {
-    const inventory = await prisma.inventory.findUnique({ where: { productId } });
-
-    if (!inventory) {
-      return res.status(404).json({ message: "Product inventory not found" });
-    }
-
-    const updatedInventory = await prisma.inventory.update({
-      where: { productId },
-      data: {
-        quantity: { increment: addedQuantity }
-      }
+    const item = await prisma.inventoryItem.findFirst({
+      where: { id: parseInt(inventoryItemId), outletId: parseInt(outletId) },
     });
+    if (!item) return res.status(404).json({ message: "Inventory item not found" });
 
-    await prisma.stockHistory.create({
-      data: {
-        productId: parseInt(productId),
-        outletId : parseInt(outletId),
-        quantity: addedQuantity,
-        action: "ADD"
-      }
-    });
+    const [updated] = await prisma.$transaction([
+      prisma.inventoryItem.update({
+        where: { id: parseInt(inventoryItemId) },
+        data: { currentStock: { increment: parseFloat(addedQuantity) } },
+      }),
+      prisma.inventoryItemHistory.create({
+        data: {
+          inventoryItemId: parseInt(inventoryItemId),
+          outletId: parseInt(outletId),
+          movementType: "INWARD",
+          quantity: parseFloat(addedQuantity),
+          unit: item.stockUnit,
+          source: "MANUAL_ADD",
+          remarks: remarks || null,
+        },
+      }),
+    ]);
 
-    return res.status(200).json({ message: "Stock updated successfully", updatedInventory });
+    return res.status(200).json({ message: "Stock updated", currentStock: updated.currentStock });
   } catch (err) {
-    console.error("Error updating stock:", err);
+    console.error("Error adding stock:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
+export const deductStock = async (req, res) => {
+  const { inventoryItemId, outletId, quantity, reason } = req.body;
 
-export const deductStock = async (req, res, next) => {
-  const { productId, outletId, quantity } = req.body;
-
-  if (!productId || !outletId || !quantity || quantity <= 0) {
-    return res.status(400).json({ message: "Provide valid productId, outletId, and quantity." });
+  if (!inventoryItemId || !outletId || !quantity || parseFloat(quantity) <= 0) {
+    return res.status(400).json({ message: "Provide valid inventoryItemId, outletId, and quantity." });
   }
 
   try {
-    const inventory = await prisma.inventory.findFirst({
-      where: {
-        productId: parseInt(productId),
-        outletId: parseInt(outletId),
-      }
+    const item = await prisma.inventoryItem.findFirst({
+      where: { id: parseInt(inventoryItemId), outletId: parseInt(outletId) },
     });
+    if (!item) return res.status(404).json({ message: "Inventory item not found." });
 
-    if (!inventory) {
-      return res.status(404).json({ message: "Inventory record not found." });
-    }
-
-    if (inventory.quantity < quantity) {
+    const deductQty = parseFloat(quantity);
+    if (item.currentStock < deductQty) {
       return res.status(400).json({ message: "Insufficient stock available." });
     }
 
-    const updatedInventory = await prisma.inventory.update({
-      where: { productId: parseInt(productId) },
-      data: {
-        quantity: {
-          decrement: quantity
-        }
-      }
-    });
+    const [updated] = await prisma.$transaction([
+      prisma.inventoryItem.update({
+        where: { id: parseInt(inventoryItemId) },
+        data: { currentStock: { decrement: deductQty } },
+      }),
+      prisma.inventoryItemHistory.create({
+        data: {
+          inventoryItemId: parseInt(inventoryItemId),
+          outletId: parseInt(outletId),
+          movementType: "OUTWARD",
+          quantity: deductQty,
+          unit: item.stockUnit,
+          source: "MANUAL_DEDUCTION",
+          remarks: reason || "Manual deduction",
+        },
+      }),
+    ]);
 
-    await prisma.stockHistory.create({
-      data: {
-        productId: parseInt(productId),
-        outletId: parseInt(outletId),
-        quantity,
-        action: "REMOVE",
-      }
-    });
-
-    res.status(200).json({ message: "Stock deducted successfully", currentQuantity: updatedInventory.quantity });
-
+    res.status(200).json({ message: "Stock deducted", currentStock: updated.currentStock });
   } catch (err) {
     console.error("Error deducting stock:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-
-export const stockHistory = async (req, res, next) => {
-  const { outletId, startDate, endDate } = req.body;
+export const stockHistory = async (req, res) => {
+  const { outletId, startDate, endDate, inventoryItemId, source } = req.body;
 
   if (!outletId || !startDate || !endDate) {
     return res.status(400).json({ message: "outletId, startDate, and endDate are required." });
   }
 
   try {
-    const parsedOutletId = parseInt(outletId);
-    const from = new Date(startDate);
-    const to = new Date(new Date(endDate).setHours(23, 59, 59, 999));
-    const history = await prisma.stockHistory.findMany({
+    const history = await prisma.inventoryItemHistory.findMany({
       where: {
-        outletId: parsedOutletId,
-        action: {
-            in: ["ADD", "REMOVE"]
+        outletId: parseInt(outletId),
+        createdAt: {
+          gte: new Date(startDate),
+          lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
         },
-        timestamp: {
-          gte: from,
-          lte: to
-        }
+        ...(inventoryItemId ? { inventoryItemId: parseInt(inventoryItemId) } : {}),
+        ...(source ? { source } : {}),
       },
-      orderBy: {
-        timestamp: "desc"
-      },
+      orderBy: { createdAt: "desc" },
       include: {
-        product: {
-          select: {
-            id: true,
-            name: true,
-            category : true
-          }
-        }
-      }
+        inventoryItem: {
+          select: { id: true, itemName: true, stockUnit: true, itemCategory: true },
+        },
+      },
     });
 
     res.status(200).json({ message: "Stock history fetched", history });
@@ -166,4 +146,3 @@ export const stockHistory = async (req, res, next) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-

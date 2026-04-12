@@ -76,13 +76,12 @@ export const addProduct = async (req, res, next) => {
         return res.status(400).json({ message: "Image upload failed", error: err.message });
       }
 
-      const { name, description, price, outletId, category, threshold, minValue } = req.body;
+      const { name, description, price, outletId, category, threshold } = req.body;
       if (!name || !description || !price || !outletId || !category) {
         return res.status(400).json({ message: "Provide all the fields" });
       }
 
       const crtName = name.toLowerCase();
-      const productMinValue = parseInt(minValue) || 0;
       const existingProduct = await prisma.product.findUnique({ where: { name: crtName } });
       if (existingProduct) {
         return res.status(400).json({ message: "Product already available" });
@@ -101,12 +100,11 @@ export const addProduct = async (req, res, next) => {
           imageUrl,
           outletId: parseInt(outletId),
           category,
-          minValue: productMinValue,
           inventory: {
             create: {
               outletId: parseInt(outletId),
               threshold: parseInt(threshold) || 10,
-              quantity: productMinValue,
+              quantity: 0,
             },
           },
         },
@@ -116,7 +114,7 @@ export const addProduct = async (req, res, next) => {
         data: {
           productId: newProduct.id,
           outletId: parseInt(outletId),
-          quantity: productMinValue,
+          quantity: 0,
           action: "ADD",
         },
       });
@@ -124,10 +122,10 @@ export const addProduct = async (req, res, next) => {
       return res.status(201).json({
         message: "Product Created",
         product: {
+          id: newProduct.id,
           name: newProduct.name,
           price: newProduct.price,
-          minValue: newProduct.minValue,
-          imageUrl: newProduct.imageUrl, // Include imageUrl in response
+          imageUrl: newProduct.imageUrl,
         },
       });
     });
@@ -165,7 +163,7 @@ export const updateProduct = async (req, res, next) => {
             }
 
             const productId = parseInt(req.params.id);
-            const { name, description, price, category, threshold, minValue, outletId } = req.body;
+            const { name, description, price, category, threshold, outletId } = req.body;
 
             if (!name || !description || !price || !category || !outletId) {
                 return res.status(400).json({
@@ -192,7 +190,6 @@ export const updateProduct = async (req, res, next) => {
                 });
             }
             const crtName = name.toLowerCase();
-            const productMinValue = parseInt(minValue) || 0;
             const inventoryThreshold = parseInt(threshold) || 10;
             const duplicateProduct = await prisma.product.findFirst({
                 where: {
@@ -223,7 +220,6 @@ export const updateProduct = async (req, res, next) => {
                         price: parseFloat(price),
                         imageUrl, // Make sure to save the new image URL
                         category,
-                        minValue: productMinValue,
                         outletId: parseInt(outletId),
                     },
                 });

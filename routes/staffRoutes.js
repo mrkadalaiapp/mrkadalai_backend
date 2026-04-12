@@ -34,7 +34,7 @@ staffRouter.get('outlets/tickets/count',authenticateToken,authorizeRoles('STAFF'
 staffRouter.post('/outlets/add-manual-order/',authenticateToken,authorizeRoles('STAFF'),addManualOrder);
 staffRouter.get('/outlets/get-products-in-stock/:outletId',authenticateToken,authorizeRoles('STAFF'),getProducts);
 
-//Inventory Management
+//Inventory Management (New InventoryItem system)
 staffRouter.get('/outlets/get-stocks/:outletId/',authenticateToken,authorizeRoles('STAFF'),getStocks);
 staffRouter.post('/outlets/add-stock/',authenticateToken,authorizeRoles('STAFF'),addStock);
 staffRouter.post('/outlets/deduct-stock/',authenticateToken,authorizeRoles('STAFF'),deductStock);

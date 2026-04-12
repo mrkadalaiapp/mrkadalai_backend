@@ -138,4 +138,16 @@ class RazorpayService {
   }
 }
 
-export default new RazorpayService();
+let razorpayServiceInstance = null;
+
+try {
+  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    razorpayServiceInstance = new RazorpayService();
+  } else {
+    console.log('⚠️  Razorpay keys not configured. Payment features disabled.');
+  }
+} catch (err) {
+  console.log('⚠️  Razorpay initialization failed:', err.message);
+}
+
+export default razorpayServiceInstance;
