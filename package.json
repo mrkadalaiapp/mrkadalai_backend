@@ -23,6 +23,7 @@
     "@arcjet/inspect": "^1.0.0-beta.8",
     "@arcjet/node": "^1.0.0-beta.8",
     "@neondatabase/serverless": "^1.0.1",
+    "@supabase/supabase-js": "^2.105.3",
     "aws-sdk": "^2.1692.0",
     "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
