@@ -37,13 +37,15 @@ const defaultProductionOrigins = [
   'http://localhost:3000', // For local testing
   'http://localhost:5173', // Vite default
   'http://127.0.0.1:3000',
-  'http://127.0.0.1:5173'
+  'http://127.0.0.1:5173',
+  'https://mrkadalai-staff.vercel.app',
+  'https://mrkadalai-frontend.vercel.app'
 ];
 
-const allowedOriginsList = isProduction 
-  ? (process.env.ALLOWED_ORIGINS 
-      ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-      : defaultProductionOrigins)
+const allowedOriginsList = isProduction
+  ? (process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+    : defaultProductionOrigins)
   : true; // Allow all in development
 
 app.use(cors({
@@ -52,7 +54,7 @@ app.use(cors({
     if (!origin) {
       return callback(null, true);
     }
-    
+
     if (isProduction) {
       // Check if origin is in allowed list
       if (allowedOriginsList.includes(origin)) {
