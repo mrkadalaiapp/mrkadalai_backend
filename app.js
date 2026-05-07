@@ -49,26 +49,7 @@ const allowedOriginsList = isProduction
   : true; // Allow all in development
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman, or curl requests)
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    if (isProduction) {
-      // Check if origin is in allowed list
-      if (allowedOriginsList.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn(`⚠️  CORS blocked origin: ${origin}`);
-        console.log(`Allowed origins: ${JSON.stringify(allowedOriginsList, null, 2)}`);
-        callback(new Error('Not allowed by CORS'));
-      }
-    } else {
-      // Development: allow all origins
-      callback(null, true);
-    }
-  },
+  origin: true, // Temporarily allow all origins for debugging
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

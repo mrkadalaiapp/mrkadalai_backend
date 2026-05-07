@@ -18,3 +18,5 @@ node_modules
 # Prisma generated files
 /generated/prisma
 .prisma
+create_superadmin.js
+check_user.js
