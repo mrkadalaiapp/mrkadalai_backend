@@ -287,22 +287,51 @@ export const updateOrder = async (req, res) => {
     // === DELIVERED ===
     if (status === "DELIVERED") {
         if (order.status === 'CANCELLED') {
-             return res.status(400).json({ message: "Cannot mark a cancelled order as delivered." });
+            return res.status(400).json({ message: "Cannot mark a cancelled order as delivered." });
         }
-        await prisma.$transaction([
-            prisma.orderItem.updateMany({
-                where: { orderId: order.id, status: { not: "DELIVERED" } }, // Only update undelivered items
+
+        await prisma.$transaction(async (tx) => {
+            // Mark all undelivered items as delivered
+            await tx.orderItem.updateMany({
+                where: { orderId: order.id, status: { not: "DELIVERED" } },
                 data: { status: "DELIVERED" },
-            }),
-            prisma.order.update({
+            });
+            await tx.order.update({
                 where: { id: order.id },
-                data: { 
-                    status: "DELIVERED",
-                    deliveredAt: new Date() // Set deliveredAt when order is delivered
-                },
-            }),
-        ]);
-        return res.status(200).json({ message: "All items and order marked DELIVERED" });
+                data: { status: "DELIVERED", deliveredAt: new Date() },
+            });
+
+            // ── Recipe-based inventory deduction ──
+            for (const item of order.items) {
+                const recipe = await tx.productRecipe.findMany({
+                    where: { productId: item.productId },
+                    include: { inventoryItem: true },
+                });
+
+                for (const row of recipe) {
+                    const deductQty = row.quantityPerServing * item.quantity;
+                    // Only deduct if sufficient stock exists (allow slight negative for resilience)
+                    await tx.inventoryItem.update({
+                        where: { id: row.inventoryItemId },
+                        data: { currentStock: { decrement: deductQty } },
+                    });
+                    await tx.inventoryItemHistory.create({
+                        data: {
+                            inventoryItemId: row.inventoryItemId,
+                            outletId: parseInt(outletId),
+                            movementType: "OUTWARD",
+                            quantity: deductQty,
+                            unit: row.unit,
+                            source: order.type === 'MANUAL' ? "POS_SALE" : "APP_SALE",
+                            referenceId: `ORD-${order.id}`,
+                            remarks: `Sale: ${item.quantity}x product #${item.productId}`,
+                        },
+                    });
+                }
+            }
+        });
+
+        return res.status(200).json({ message: "All items and order marked DELIVERED, inventory deducted" });
     }
 
     // === PARTIALLY_DELIVERED ===
@@ -529,30 +558,20 @@ export const getHomeDetails = async (req, res) => {
     const totalRechargedAmount = totalWalletRecharge._sum.totalRecharged || 0;
 
     
-    const lowStock = await prisma.inventory.findMany({
-      where: {
-        outletId,
-        quantity: {
-          lt: prisma.inventory.fields.threshold,
-        },
-      },
-      include: {
-        product: {
-          select: {
-            id: true,
-            name: true,
-            imageUrl: true,
-          },
-        },
-      },
-    });
+    // Low stock from new InventoryItem system
+    const allInventoryItems = await prisma.inventoryItem.findMany({
+      where: { outletId, status: 'ACTIVE' },
+    }).catch(() => []);
 
-    const lowStockProducts = lowStock.map(item => ({
-      productId: item.product.id,
-      name: item.product.name,
-      imageUrl: item.product.imageUrl,
-      quantity: item.quantity,
-      threshold: item.threshold,
+    const lowStockItems = allInventoryItems.filter(item => item.currentStock <= item.reorderThreshold);
+
+    const lowStockProducts = lowStockItems.map(item => ({
+      productId: item.id,
+      name: item.itemName,
+      imageUrl: null,
+      quantity: item.currentStock,
+      threshold: item.reorderThreshold,
+      unit: item.stockUnit,
     }));
 
   

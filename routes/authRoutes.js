@@ -12,6 +12,7 @@ import {
 } from '../controllers/auth/auth.controller.js';
 import { authenticateToken } from '../middlewares/auth.middleware.js';
 import { uploadDocuments } from '../middlewares/upload.middleware.js';
+import { requestPasswordReset, verifyResetOtp, resetPassword } from '../controllers/auth/passwordReset.controller.js';
 
 const authRouter = express.Router();
 
@@ -20,6 +21,11 @@ const authRouter = express.Router();
 //Customer auth
 authRouter.post('/signup', customerSignup);
 authRouter.post('/signin', customerSignIn);
+
+// Password Reset endpoints
+authRouter.post('/forgot-password', requestPasswordReset);
+authRouter.post('/verify-reset-otp', verifyResetOtp);
+authRouter.post('/reset-password', resetPassword);
 
 //staff auth
 authRouter.post('/staff-signup', uploadDocuments, staffSignup)

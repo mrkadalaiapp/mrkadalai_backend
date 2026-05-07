@@ -29,6 +29,12 @@ model Outlet {
   notifications Notification[]
   scheduledNotifications ScheduledNotification[]
   appManagement OutletAppManagement[]
+  // New inventory system
+  inventoryItems       InventoryItem[]
+  inventoryItemHistory InventoryItemHistory[]
+  expenseCategories    ExpenseCategory[]
+  expenseNames         ExpenseName[]
+  vendors              Vendor[]
 }
 
 model User {
@@ -42,7 +48,7 @@ model User {
   createdAt    DateTime         @default(now())
   phone        String?
   isVerified   Boolean          @default(false)
-  imageUrl String?
+  imageUrl     String?
   customerInfo CustomerDetails?
   staffInfo    StaffDetails?
   outlet       Outlet?          @relation("OutletUsers", fields: [outletId], references: [id], onDelete: Cascade)
@@ -53,7 +59,7 @@ model User {
 model CustomerDetails {
   id          Int           @id @default(autoincrement())
   userId      Int           @unique
-  orderCount Int @default(0)
+  orderCount  Int           @default(0)
   yearOfStudy Int?
   degree      typeOfDegree?
   bio         String?
@@ -65,17 +71,17 @@ model CustomerDetails {
 }
 
 model StaffDetails {
-  id                    Int               @id @default(autoincrement())
-  userId                Int               @unique
-  staffRole             String            @default("Staff")
-  aadharUrl             String?
-  panUrl                String?
-  twoFactorSecret       String?           // TOTP secret key (Base32 encoded)
-  twoFactorEnabled      Boolean           @default(false) // Whether 2FA is enabled
-  twoFactorBackupCodes  Json?             // Array of backup recovery codes
-  twoFactorEnabledAt    DateTime?         // When 2FA was enabled
-  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permissions           StaffPermission[]
+  id                   Int               @id @default(autoincrement())
+  userId               Int               @unique
+  staffRole            String            @default("Staff")
+  aadharUrl            String?
+  panUrl               String?
+  twoFactorSecret      String?
+  twoFactorEnabled     Boolean           @default(false)
+  twoFactorBackupCodes Json?
+  twoFactorEnabledAt   DateTime?
+  user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions          StaffPermission[]
 }
 
 model StaffPermission {
@@ -107,20 +113,22 @@ model CartItem {
 }
 
 model Product {
-  id           Int            @id @default(autoincrement())
-  name         String         @unique
-  description  String?
-  price        Float
-  imageUrl     String?
-  outletId     Int
-  category     Category
-  minValue     Int?           @default(0)
-  inventory    Inventory?
-  orderItems   OrderItem[]    @relation("ProductToOrderItems")
-  outlet       Outlet         @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  StockHistory StockHistory[]
-  cartItems    CartItem[]     @relation("ProductCartItems")
-  notifications Notification[]
+  id               Int             @id @default(autoincrement())
+  name             String          @unique
+  description      String?
+  price            Float
+  imageUrl         String?
+  outletId         Int
+  category         Category
+  minValue         Int?            @default(0)
+  recipeConfigured Boolean         @default(false)
+  inventory        Inventory?
+  orderItems       OrderItem[]     @relation("ProductToOrderItems")
+  outlet           Outlet          @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  StockHistory     StockHistory[]
+  cartItems        CartItem[]      @relation("ProductCartItems")
+  notifications    Notification[]
+  recipes          ProductRecipe[]
 }
 
 model Inventory {
@@ -142,6 +150,119 @@ model StockHistory {
   timestamp DateTime    @default(now())
   outlet    Outlet      @relation(fields: [outletId], references: [id], onDelete: Cascade)
   product   Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// ── NEW: Raw-material Inventory ────────────────────────────────────────────────
+
+model InventoryItem {
+  id               Int                    @id @default(autoincrement())
+  outletId         Int
+  itemName         String
+  itemCategory     String                 @default("Other")
+  stockUnit        String
+  currentStock     Float                  @default(0)
+  reorderThreshold Float                  @default(0)
+  costPerUnit      Float                  @default(0)
+  status           InventoryItemStatus    @default(ACTIVE)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  outlet           Outlet                 @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  recipeRows       ProductRecipe[]
+  stockMovements   InventoryItemHistory[]
+  linkedExpenseNames ExpenseName[]
+  expenseEntries   Expense[]
+
+  @@unique([outletId, itemName])
+}
+
+model InventoryItemHistory {
+  id              Int            @id @default(autoincrement())
+  inventoryItemId Int
+  outletId        Int
+  movementType    MovementType
+  quantity        Float
+  unit            String
+  source          MovementSource
+  referenceId     String?
+  remarks         String?
+  createdAt       DateTime       @default(now())
+  inventoryItem   InventoryItem  @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  outlet          Outlet         @relation(fields: [outletId], references: [id], onDelete: Cascade)
+}
+
+model ProductRecipe {
+  id                 Int            @id @default(autoincrement())
+  productId          Int
+  inventoryItemId    Int
+  itemType           RecipeItemType
+  quantityPerServing Float
+  unit               String
+  costPerUnit        Float          @default(0)
+  product            Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventoryItem      InventoryItem  @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, inventoryItemId])
+}
+
+// ── NEW: Expenditure Masters ───────────────────────────────────────────────────
+
+model ExpenseCategory {
+  id               Int           @id @default(autoincrement())
+  outletId         Int
+  name             String
+  isStockAffecting Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  outlet           Outlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  expenseNames     ExpenseName[]
+
+  @@unique([outletId, name])
+}
+
+model ExpenseName {
+  id                    Int             @id @default(autoincrement())
+  outletId              Int
+  categoryId            Int
+  name                  String
+  linkedInventoryItemId Int?
+  createdAt             DateTime        @default(now())
+  outlet                Outlet          @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  category              ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  inventoryItem         InventoryItem?  @relation(fields: [linkedInventoryItemId], references: [id])
+
+  @@unique([outletId, categoryId, name])
+}
+
+model Vendor {
+  id        Int      @id @default(autoincrement())
+  outletId  Int
+  name      String
+  createdAt DateTime @default(now())
+  outlet    Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, name])
+}
+
+// ── Extended Expense model ────────────────────────────────────────────────────
+
+model Expense {
+  id                    Int            @id @default(autoincrement())
+  outletId              Int
+  description           String
+  category              String
+  amount                Float
+  method                PaymentMethod
+  paidTo                String
+  expenseDate           DateTime
+  createdAt             DateTime       @default(now())
+  quantity              Float?
+  unit                  String?
+  unitPrice             Float?
+  vendorName            String?
+  billUrl               String?
+  expenseNameId         Int?
+  linkedInventoryItemId Int?
+  linkedInventoryItem   InventoryItem? @relation(fields: [linkedInventoryItemId], references: [id])
+  outlet                Outlet         @relation(fields: [outletId], references: [id], onDelete: Cascade)
 }
 
 model Order {
@@ -187,30 +308,17 @@ model Wallet {
 }
 
 model WalletTransaction {
-  id        Int             @id @default(autoincrement())
-  walletId  Int
-  amount    Float
-  grossAmount    Float?          // Total amount paid by customer (including service charge)
-  serviceCharge     Float?          // Razorpay service charge
-  method    PaymentMethod
-  razorpayPaymentId String?         // Razorpay payment ID for tracking
-  razorpayOrderId   String?         // Razorpay order ID for tracking
-  createdAt DateTime        @default(now())
-  status    WalletTransType
-  wallet    Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
-}
-
-model Expense {
-  id          Int           @id @default(autoincrement())
-  outletId    Int
-  description String
-  category    String
-  amount      Float
-  method      PaymentMethod
-  paidTo      String
-  expenseDate DateTime
-  createdAt   DateTime      @default(now())
-  outlet      Outlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  id                Int             @id @default(autoincrement())
+  walletId          Int
+  amount            Float
+  grossAmount       Float?
+  serviceCharge     Float?
+  method            PaymentMethod
+  razorpayPaymentId String?
+  razorpayOrderId   String?
+  createdAt         DateTime        @default(now())
+  status            WalletTransType
+  wallet            Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
 }
 
 model Ticket {
@@ -224,7 +332,7 @@ model Ticket {
   resolvedAt     DateTime?
   resolutionNote String?
   customer       CustomerDetails @relation("CustomerTickets", fields: [customerId], references: [id], onDelete: Cascade)
-  imageUrl       String? // For storing image URL
+  imageUrl       String?
 }
 
 model Coupon {
@@ -238,9 +346,9 @@ model Coupon {
   isActive      Boolean       @default(true)
   usageLimit    Int
   usedCount     Int           @default(0)
-  usageType String?
+  usageType     String?
   outletId      Int?
-  outlet        Outlet?        @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  outlet        Outlet?       @relation(fields: [outletId], references: [id], onDelete: Cascade)
   usages        CouponUsage[]
   createdAt     DateTime      @default(now())
 }
@@ -262,7 +370,7 @@ model Admin {
   password    String
   phone       String?
   isVerified  Boolean           @default(false)
-  imageUrl String?
+  imageUrl    String?
   aadharUrl   String?
   panUrl      String?
   createdAt   DateTime          @default(now())
@@ -290,16 +398,17 @@ model AdminPermission {
   isGranted     Boolean             @default(false)
   admin         Admin?              @relation("AdminPermissions", fields: [adminId], references: [id], onDelete: Cascade)
   AdminOutlet   AdminOutlet         @relation("AdminOutletPermissions", fields: [adminOutletId], references: [id], onDelete: Cascade)
-  
+
   @@unique([adminOutletId, type])
 }
 
 model OutletAvailability {
-  id              Int      @id @default(autoincrement())
-  outletId        Int
-  date            DateTime
-  nonAvailableSlots Json @db.Json
-  outlet          Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  id                Int      @id @default(autoincrement())
+  outletId          Int
+  date              DateTime
+  nonAvailableSlots Json     @db.Json
+  outlet            Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
   @@unique([outletId, date])
   @@index([outletId, date])
 }
@@ -316,18 +425,18 @@ model Notification {
 }
 
 model ScheduledNotification {
-  id          Int       @id @default(autoincrement())
+  id          Int                    @id @default(autoincrement())
   title       String
   message     String
   priority    Priority
   imageUrl    String?
   scheduledAt DateTime
   sentAt      DateTime?
-  isSent      Boolean   @default(false)
+  isSent      Boolean                @default(false)
   outletId    Int
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  outlet      Outlet    @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  outlet      Outlet                 @relation(fields: [outletId], references: [id], onDelete: Cascade)
   deliveries  NotificationDelivery[]
 }
 
@@ -339,26 +448,26 @@ model NotificationDelivery {
   status                  NotificationStatus    @default(PENDING)
   sentAt                  DateTime?
   failureReason           String?
-  messageId               String?               // FCM message ID for tracking
+  messageId               String?
   createdAt               DateTime              @default(now())
   updatedAt               DateTime              @updatedAt
   scheduledNotification   ScheduledNotification @relation(fields: [scheduledNotificationId], references: [id], onDelete: Cascade)
   user                    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@unique([scheduledNotificationId, userId, deviceToken])
   @@index([scheduledNotificationId, status])
   @@index([userId, status])
 }
 
 model UserDeviceToken {
-  id        Int      @id @default(autoincrement())
-  userId    Int 
-  deviceToken String @unique
-  platform  String   // 'ios' or 'android'
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  deviceToken String   @unique
+  platform    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model OutletAppManagement {
@@ -367,10 +476,12 @@ model OutletAppManagement {
   feature   OutletAppFeature
   isEnabled Boolean          @default(false)
   outlet    Outlet           @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  
+
   @@unique([outletId, feature])
   @@index([outletId, feature])
 }
+
+// ── Enums ──────────────────────────────────────────────────────────────────────
 
 enum typeOfDegree {
   UG
@@ -484,3 +595,44 @@ enum NotificationStatus {
   FAILED
   DELIVERED
 }
+
+// ── New Enums ──────────────────────────────────────────────────────────────────
+
+
+enum InventoryItemStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MovementType {
+  INWARD
+  OUTWARD
+}
+
+enum MovementSource {
+  EXPENDITURE_ENTRY
+  MANUAL_ADD
+  APP_SALE
+  POS_SALE
+  MANUAL_DEDUCTION
+  CANCELLATION_REVERSAL
+}
+
+enum RecipeItemType {
+  RAW_MATERIAL
+  SERVING_ITEM
+  PACKAGING_ITEM
+}
+
+// ── Authentication & Security ────────────────────────────────────────────────
+
+model PasswordReset {
+  id        Int      @id @default(autoincrement())
+  email     String
+  otp       String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
