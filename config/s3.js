@@ -5,12 +5,19 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const bucketName = process.env.SUPABASE_BUCKET_NAME || 'images';
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+let supabase;
+const getSupabase = () => {
+  if (!supabase) {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('Supabase credentials missing in environment variables');
+    }
+    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+  }
+  return supabase;
+};
 
 export const uploadImage = async (fileBuffer, fileName, mimetype) => {
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase credentials missing for image upload');
-  }
+  const supabase = getSupabase();
 
   // Generate unique file name
   const fileExt = fileName.split('.').pop();
@@ -41,6 +48,7 @@ export const deleteImage = async (imageUrl) => {
   if (!imageUrl) return;
 
   try {
+    const supabase = getSupabase();
     // Extract file path from public URL
     // Public URL format: https://[ref].supabase.co/storage/v1/object/public/[bucket]/[path]
     const parts = imageUrl.split(`/${bucketName}/`);
