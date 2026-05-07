@@ -305,9 +305,9 @@ export const verifyAdmin = async (req, res, next) => {
     // Verify the requesting user is SuperAdmin
     const superAdmin = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, superAdmin: true },
+      select: { role: true },
     });
-    if (!superAdmin || superAdmin.role !== 'SUPERADMIN' || !superAdmin.superAdmin) {
+    if (!superAdmin || superAdmin.role !== 'SUPERADMIN') {
       return res.status(403).json({ message: 'Only SuperAdmin can verify admins' });
     }
 
