@@ -39,7 +39,7 @@ const defaultProductionOrigins = [
   'http://127.0.0.1:3000',
   'http://127.0.0.1:5173',
   'https://mrkadalai-staff.vercel.app',
-  'https://mrkadalai-frontend.vercel.app'
+  'https://mrkadalai-admin-app.vercel.app/'
 ];
 
 const allowedOriginsList = isProduction
