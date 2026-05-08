@@ -72,62 +72,67 @@ export const getProducts = async (req, res, next) => {
 export const addProduct = async (req, res, next) => {
   try {
     upload(req, res, async (err) => {
-      if (err) {
-        return res.status(400).json({ message: "Image upload failed", error: err.message });
-      }
+      try {
+        if (err) {
+          return res.status(400).json({ message: "Image upload failed", error: err.message });
+        }
 
-      const { name, description, price, outletId, category, threshold } = req.body;
-      if (!name || !description || !price || !outletId || !category) {
-        return res.status(400).json({ message: "Provide all the fields" });
-      }
+        const { name, description, price, outletId, category, threshold } = req.body;
+        if (!name || !description || !price || !outletId || !category) {
+          return res.status(400).json({ message: "Provide all the fields" });
+        }
 
-      const crtName = name.toLowerCase();
-      const existingProduct = await prisma.product.findUnique({ where: { name: crtName } });
-      if (existingProduct) {
-        return res.status(400).json({ message: "Product already available" });
-      }
+        const crtName = name.toLowerCase();
+        const existingProduct = await prisma.product.findUnique({ where: { name: crtName } });
+        if (existingProduct) {
+          return res.status(400).json({ message: "Product already available" });
+        }
 
-      let imageUrl = null;
-      if (req.file) {
-        imageUrl = await uploadImage(req.file.buffer, req.file.originalname);
-      }
+        let imageUrl = null;
+        if (req.file) {
+          imageUrl = await uploadImage(req.file.buffer, req.file.originalname, req.file.mimetype);
+        }
 
-      const newProduct = await prisma.product.create({
-        data: {
-          name: crtName,
-          description,
-          price: parseFloat(price),
-          imageUrl,
-          outletId: parseInt(outletId),
-          category,
-          inventory: {
-            create: {
-              outletId: parseInt(outletId),
-              threshold: parseInt(threshold) || 10,
-              quantity: 0,
+        const newProduct = await prisma.product.create({
+          data: {
+            name: crtName,
+            description,
+            price: parseFloat(price),
+            imageUrl,
+            outletId: parseInt(outletId),
+            category,
+            inventory: {
+              create: {
+                outletId: parseInt(outletId),
+                threshold: parseInt(threshold) || 10,
+                quantity: 0,
+              },
             },
           },
-        },
-      });
+        });
 
-      await prisma.stockHistory.create({
-        data: {
-          productId: newProduct.id,
-          outletId: parseInt(outletId),
-          quantity: 0,
-          action: "ADD",
-        },
-      });
+        await prisma.stockHistory.create({
+          data: {
+            productId: newProduct.id,
+            outletId: parseInt(outletId),
+            quantity: 0,
+            action: "ADD",
+          },
+        });
 
-      return res.status(201).json({
-        message: "Product Created",
-        product: {
-          id: newProduct.id,
-          name: newProduct.name,
-          price: newProduct.price,
-          imageUrl: newProduct.imageUrl,
-        },
-      });
+        return res.status(201).json({
+          message: "Product Created",
+          product: {
+            id: newProduct.id,
+            name: newProduct.name,
+            price: newProduct.price,
+            imageUrl: newProduct.imageUrl,
+          },
+        });
+      } catch (error) {
+        console.error("Error in addProduct upload callback:", error);
+        return res.status(500).json({ message: "Internal server error during product creation", error: error.message });
+      }
     });
   } catch (err) {
     console.error("Error adding product:", err);
@@ -158,99 +163,101 @@ export const updateProduct = async (req, res, next) => {
     try {
         // Use multer middleware to handle the form data
         upload(req, res, async (err) => {
-            if (err) {
-                return res.status(400).json({ message: "Image upload failed", error: err.message });
-            }
+            try {
+                if (err) {
+                    return res.status(400).json({ message: "Image upload failed", error: err.message });
+                }
 
-            const productId = parseInt(req.params.id);
-            const { name, description, price, category, threshold, outletId } = req.body;
+                const productId = parseInt(req.params.id);
+                const { name, description, price, category, threshold, outletId } = req.body;
 
-            if (!name || !description || !price || !category || !outletId) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Missing required fields: name, description, price, category, outletId",
-                });
-            }
+                if (!name || !description || !price || !category || !outletId) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Missing required fields: name, description, price, category, outletId",
+                    });
+                }
 
-            // The rest of your existing update logic goes here...
-            if (price <= 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Price must be greater than 0",
-                });
-            }
-            const existingProduct = await prisma.product.findUnique({
-                where: { id: productId },
-                include: { inventory: true },
-            });
-            if (!existingProduct) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Product not found",
-                });
-            }
-            const crtName = name.toLowerCase();
-            const inventoryThreshold = parseInt(threshold) || 10;
-            const duplicateProduct = await prisma.product.findFirst({
-                where: {
-                    name: crtName,
-                    NOT: { id: productId },
-                },
-            });
-            if (duplicateProduct) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Product with this name already exists",
-                });
-            }
-            
-            // Handle image update
-            let imageUrl = existingProduct.imageUrl;
-            if (req.file) {
-                 // You might want to delete the old image from S3 here
-                imageUrl = await uploadImage(req.file.buffer, req.file.originalname);
-            }
-
-            const updatedProduct = await prisma.$transaction(async (tx) => {
-                const product = await tx.product.update({
+                if (price <= 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Price must be greater than 0",
+                    });
+                }
+                const existingProduct = await prisma.product.findUnique({
                     where: { id: productId },
-                    data: {
+                    include: { inventory: true },
+                });
+                if (!existingProduct) {
+                    return res.status(404).json({
+                        success: false,
+                        message: "Product not found",
+                    });
+                }
+                const crtName = name.toLowerCase();
+                const inventoryThreshold = parseInt(threshold) || 10;
+                const duplicateProduct = await prisma.product.findFirst({
+                    where: {
                         name: crtName,
-                        description,
-                        price: parseFloat(price),
-                        imageUrl, // Make sure to save the new image URL
-                        category,
-                        outletId: parseInt(outletId),
+                        NOT: { id: productId },
                     },
                 });
-                await tx.inventory.update({
-                    where: { productId: productId },
-                    data: {
-                        threshold: inventoryThreshold,
-                        outletId: parseInt(outletId),
-                    },
-                });
-                await tx.stockHistory.create({
-                    data: {
-                        productId: productId,
-                        outletId: parseInt(outletId),
-                        quantity: existingProduct.inventory.quantity,
-                        action: "UPDATE",
-                    },
-                });
-                return product;
-            });
+                if (duplicateProduct) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Product with this name already exists",
+                    });
+                }
+                
+                let imageUrl = existingProduct.imageUrl;
+                if (req.file) {
+                    imageUrl = await uploadImage(req.file.buffer, req.file.originalname, req.file.mimetype);
+                }
 
-            const productWithInventory = await prisma.product.findUnique({
-                where: { id: productId },
-                include: { inventory: true },
-            });
+                const updatedProduct = await prisma.$transaction(async (tx) => {
+                    const product = await tx.product.update({
+                        where: { id: productId },
+                        data: {
+                            name: crtName,
+                            description,
+                            price: parseFloat(price),
+                            imageUrl,
+                            category,
+                            outletId: parseInt(outletId),
+                        },
+                    });
+                    await tx.inventory.update({
+                        where: { productId: productId },
+                        data: {
+                            threshold: inventoryThreshold,
+                            outletId: parseInt(outletId),
+                        },
+                    });
+                    await tx.stockHistory.create({
+                        data: {
+                            productId: productId,
+                            outletId: parseInt(outletId),
+                            quantity: existingProduct.inventory.quantity,
+                            action: "UPDATE",
+                        },
+                    });
+                    return product;
+                });
 
-            res.status(200).json({
-                success: true,
-                message: "Product updated successfully",
-                data: productWithInventory,
-            });
+                const productWithInventory = await prisma.product.findUnique({
+                    where: { id: productId },
+                    include: { inventory: true },
+                });
+
+                res.status(200).json({
+                    success: true,
+                    message: "Product updated successfully",
+                    data: productWithInventory,
+                });
+            } catch (error) {
+                console.error("Error in updateProduct upload callback:", error);
+                return res.status(500).json({ success: false, message: "Internal server error during update", error: error.message });
+            }
         });
     } catch (error) {
         console.error("Error updating product:", error);
