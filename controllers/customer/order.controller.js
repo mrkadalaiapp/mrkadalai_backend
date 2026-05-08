@@ -900,7 +900,7 @@ export const customerAppOrder = async (req, res) => {
               movementType: 'OUTWARD',
               quantity: deductQty,
               unit: row.unit,
-              source: 'APP_ORDER',
+              source: 'APP_SALE',
               referenceId: `ORD-${order.id}`,
               remarks: `App order: ${item.quantity}x product #${item.productId}`,
             },
