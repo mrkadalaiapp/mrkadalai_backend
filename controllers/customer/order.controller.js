@@ -486,8 +486,8 @@ import { getCurrentISTAsUTC } from "../../utils/timezone.js";
 // };
 
 const razorpay = new Razorpay({
-  key_id: "rzp_test_CqJOLIOhHoCry6",
-  key_secret: "7kpwsEwlmizR3A17LgaQ9a2E",
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
 export const createRazorpayOrder = async (req, res) => {
