@@ -64,8 +64,8 @@ export const customerSignup = async (req, res, next) => {
 
     res.cookie('token', token, {
       httpOnly: true,
-      secure: isSecureCookie,
-      sameSite: 'strict',
+      secure: true, // Required for sameSite: 'none'
+      sameSite: 'none',
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
@@ -269,8 +269,8 @@ export const superAdminSignIn = async (req, res, next) => {
 
     res.cookie('token', token, {
       httpOnly: true,
-      secure: isSecureCookie,
-      sameSite: 'strict',
+      secure: true, // Required for sameSite: 'none'
+      sameSite: 'none',
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
@@ -390,8 +390,8 @@ export const adminSignIn = async (req, res, next) => {
 
     res.cookie('token', token, {
       httpOnly: true,
-      secure: isSecureCookie,
-      sameSite: 'strict',
+      secure: true, // Required for sameSite: 'none'
+      sameSite: 'none',
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
@@ -453,8 +453,8 @@ export const customerSignIn = async (req, res, next) => {
 
     res.cookie('token', token, {
       httpOnly: true,
-      secure: isSecureCookie,
-      sameSite: 'strict',
+      secure: true, // Required for sameSite: 'none'
+      sameSite: 'none',
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
@@ -518,8 +518,8 @@ export const staffSignIn = async (req, res, next) => {
 
     res.cookie('token', token, {
       httpOnly: true,
-      secure: isSecureCookie,
-      sameSite: 'strict',
+      secure: true, // Required for sameSite: 'none'
+      sameSite: 'none',
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 

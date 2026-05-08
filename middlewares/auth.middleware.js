@@ -71,7 +71,10 @@ export const authenticateToken = async (req, res, next) => {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ message: 'Token expired.' });
     }
-    return res.status(500).json({ message: 'Server error during authentication.' });
+    return res.status(500).json({ 
+      message: 'Server error during authentication.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
   }
 };
 
