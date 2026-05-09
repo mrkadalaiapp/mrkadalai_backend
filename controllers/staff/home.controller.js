@@ -219,25 +219,31 @@ export const updateOrder = async (req, res) => {
 
         // Restore stock for all items since entire order is cancelled
         for (const item of order.items) {
-          // Update inventory - add back the quantity
-          await tx.inventory.update({
+          const recipe = await tx.productRecipe.findMany({
             where: { productId: item.productId },
-            data: {
-              quantity: {
-                increment: item.quantity,
-              },
-            },
+            include: { inventoryItem: true },
           });
 
-          // Add stock history record
-          await tx.stockHistory.create({
-            data: {
-              productId: item.productId,
-              outletId: order.outletId,
-              quantity: item.quantity,
-              action: 'ADD', // Adding back to stock
-            },
-          });
+          for (const row of recipe) {
+            const deductQty = row.quantityPerServing * item.quantity;
+            await tx.inventoryItem.update({
+              where: { id: row.inventoryItemId },
+              data: { currentStock: { increment: deductQty } },
+            });
+
+            await tx.inventoryItemHistory.create({
+              data: {
+                inventoryItemId: row.inventoryItemId,
+                outletId: order.outletId,
+                movementType: 'INWARD',
+                quantity: deductQty,
+                unit: row.unit,
+                source: 'CANCELLATION_REVERSAL',
+                referenceId: `ORD-${order.id}`,
+                remarks: `Order Cancelled (Staff): Returning ${item.quantity}x product #${item.productId} ingredients`,
+              },
+            });
+          }
         }
 
         // Refund logic based on order type
@@ -300,35 +306,6 @@ export const updateOrder = async (req, res) => {
                 where: { id: order.id },
                 data: { status: "DELIVERED", deliveredAt: new Date() },
             });
-
-            // ── Recipe-based inventory deduction ──
-            for (const item of order.items) {
-                const recipe = await tx.productRecipe.findMany({
-                    where: { productId: item.productId },
-                    include: { inventoryItem: true },
-                });
-
-                for (const row of recipe) {
-                    const deductQty = row.quantityPerServing * item.quantity;
-                    // Only deduct if sufficient stock exists (allow slight negative for resilience)
-                    await tx.inventoryItem.update({
-                        where: { id: row.inventoryItemId },
-                        data: { currentStock: { decrement: deductQty } },
-                    });
-                    await tx.inventoryItemHistory.create({
-                        data: {
-                            inventoryItemId: row.inventoryItemId,
-                            outletId: parseInt(outletId),
-                            movementType: "OUTWARD",
-                            quantity: deductQty,
-                            unit: row.unit,
-                            source: order.type === 'MANUAL' ? "POS_SALE" : "APP_SALE",
-                            referenceId: `ORD-${order.id}`,
-                            remarks: `Sale: ${item.quantity}x product #${item.productId}`,
-                        },
-                    });
-                }
-            }
         });
 
         return res.status(200).json({ message: "All items and order marked DELIVERED, inventory deducted" });

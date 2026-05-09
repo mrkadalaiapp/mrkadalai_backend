@@ -1204,26 +1204,31 @@ export const customerAppCancelOrder = async (req, res) => {
         },
       });
       for (const item of order.items) {
-        await tx.inventory.updateMany({
-          where: {
-            productId: item.productId,
-            outletId: order.outletId,
-          },
-          data: {
-            quantity: {
-              increment: item.quantity,
+        const recipe = await tx.productRecipe.findMany({
+          where: { productId: item.productId },
+          include: { inventoryItem: true },
+        });
+
+        for (const row of recipe) {
+          const deductQty = row.quantityPerServing * item.quantity;
+          await tx.inventoryItem.update({
+            where: { id: row.inventoryItemId },
+            data: { currentStock: { increment: deductQty } },
+          });
+
+          await tx.inventoryItemHistory.create({
+            data: {
+              inventoryItemId: row.inventoryItemId,
+              outletId: order.outletId,
+              movementType: 'INWARD',
+              quantity: deductQty,
+              unit: row.unit,
+              source: 'CANCELLATION_REVERSAL',
+              referenceId: `ORD-${order.id}`,
+              remarks: `Order Cancelled (Customer): Returning ${item.quantity}x product #${item.productId} ingredients`,
             },
-          },
-        });
-        await tx.stockHistory.create({
-          data: {
-            productId: item.productId,
-            outletId: order.outletId,
-            quantity: item.quantity,
-            action: 'ADD',
-            timestamp: new Date(),
-          },
-        });
+          });
+        }
       }
       if (order.paymentMethod === 'WALLET' || order.paymentMethod === 'UPI' || order.paymentMethod === 'CARD') {
         let wallet = await tx.wallet.findUnique({
