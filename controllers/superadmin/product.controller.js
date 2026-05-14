@@ -54,14 +54,44 @@ export const getProducts = async (req, res, next) => {
       where: outletId ? { outletId } : {},
       include: {
         inventory: true,
+        recipes: {
+          include: {
+            inventoryItem: true
+          }
+        }
       },
       orderBy: {
         name: "asc",
       },
     });
+
+    // Calculate virtual stock for products with recipes
+    const productsWithCalculatedStock = products.map(product => {
+      let virtualQuantity = product.inventory?.quantity || 0;
+      
+      if (product.recipes && product.recipes.length > 0) {
+        // Find the minimum servings possible based on all ingredients
+        const servingsPossible = product.recipes.map(recipe => {
+          if (!recipe.inventoryItem) return 999999; // Assume plenty if item missing (or should we assume 0?)
+          if (recipe.quantityPerServing <= 0) return 999999;
+          return Math.floor(recipe.inventoryItem.currentStock / recipe.quantityPerServing);
+        });
+        
+        const maxFromIngredients = Math.min(...servingsPossible);
+        
+        // Use the higher value (prepared stock OR ingredient potential)
+        virtualQuantity = Math.max(virtualQuantity, maxFromIngredients === 999999 ? 0 : maxFromIngredients);
+      }
+      
+      return {
+        ...product,
+        calculatedQuantity: virtualQuantity
+      };
+    });
+
     res.status(200).json({
       success: true,
-      data: products,
+      data: productsWithCalculatedStock,
     });
   } catch (error) {
     console.error(error);
@@ -82,7 +112,7 @@ export const addProduct = async (req, res, next) => {
           return res.status(400).json({ message: "Provide all the fields" });
         }
 
-        const crtName = name.toLowerCase();
+        const crtName = name;
         const existingProduct = await prisma.product.findUnique({ where: { name: crtName } });
         if (existingProduct) {
           return res.status(400).json({ message: "Product already available" });
@@ -194,7 +224,7 @@ export const updateProduct = async (req, res, next) => {
                         message: "Product not found",
                     });
                 }
-                const crtName = name.toLowerCase();
+                const crtName = name;
                 const inventoryThreshold = parseInt(threshold) || 10;
                 const duplicateProduct = await prisma.product.findFirst({
                     where: {

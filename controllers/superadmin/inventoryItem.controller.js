@@ -204,8 +204,8 @@ export const getInventoryItemHistory = async (req, res) => {
         gte: new Date(startDate),
         lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
       },
-      ...(inventoryItemId && { inventoryItemId: parseInt(inventoryItemId) }),
-      ...(source && { source }),
+      ...(inventoryItemId && { inventoryItemId: Array.isArray(inventoryItemId) ? { in: inventoryItemId.map(id => parseInt(id)) } : parseInt(inventoryItemId) }),
+      ...(source && { source: Array.isArray(source) ? { in: source } : source }),
     };
 
     const history = await prisma.inventoryItemHistory.findMany({

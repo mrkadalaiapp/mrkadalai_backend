@@ -129,8 +129,16 @@ export const stockHistory = async (req, res) => {
           gte: new Date(startDate),
           lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
         },
-        ...(inventoryItemId ? { inventoryItemId: parseInt(inventoryItemId) } : {}),
-        ...(source ? { source } : {}),
+        ...(inventoryItemId ? (
+          Array.isArray(inventoryItemId) 
+            ? { inventoryItemId: { in: inventoryItemId.map(id => parseInt(id)) } } 
+            : { inventoryItemId: parseInt(inventoryItemId) }
+        ) : {}),
+        ...(source ? (
+          Array.isArray(source) 
+            ? { source: { in: source } } 
+            : { source }
+        ) : {}),
       },
       orderBy: { createdAt: "desc" },
       include: {
