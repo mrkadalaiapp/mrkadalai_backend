@@ -16,9 +16,9 @@ export const getOutletSalesReport = async (req, res, next) => {
             outletId: Number(outletId),
             createdAt: {
               gte: new Date(from),
-              lte: new Date(to)
+              lte: new Date(new Date(to).setHours(23, 59, 59, 999))
             },
-            status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED'] }
+            status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED', 'PENDING'] }
           }
         },
         _sum: {
@@ -42,9 +42,9 @@ export const getOutletSalesReport = async (req, res, next) => {
             outletId: Number(outletId),
             createdAt: {
               gte: new Date(from),
-              lte: new Date(to)
+              lte: new Date(new Date(to).setHours(23, 59, 59, 999))
             },
-            status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED'] }
+            status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED', 'PENDING'] }
           }
         },
         _count: {
@@ -83,9 +83,9 @@ export const getOutletSalesReport = async (req, res, next) => {
             outletId: Number(outletId),
             createdAt: {
               gte: new Date(from),
-              lte: new Date(to)
+              lte: new Date(new Date(to).setHours(23, 59, 59, 999))
             },
-            status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED'] }
+            status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED', 'PENDING'] }
           }
         },
         select: {
@@ -133,10 +133,10 @@ export const getOutletSalesReport = async (req, res, next) => {
         where: {
           outletId: Number(outletId),
           type: 'APP',
-          status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED'] },
+          status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED', 'PENDING'] },
           createdAt: {
             gte: new Date(from),
-            lte: new Date(to)
+            lte: new Date(new Date(to).setHours(23, 59, 59, 999))
           }
         }
       });
@@ -147,10 +147,10 @@ export const getOutletSalesReport = async (req, res, next) => {
         where: {
           outletId: Number(outletId),
           type: 'MANUAL',
-          status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED'] },
+          status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED', 'PENDING'] },
           createdAt: {
             gte: new Date(from),
-            lte: new Date(to)
+            lte: new Date(new Date(to).setHours(23, 59, 59, 999))
           }
         }
       });
@@ -162,7 +162,7 @@ export const getOutletSalesReport = async (req, res, next) => {
           status: 'RECHARGE',
           createdAt: {
             gte: new Date(from),
-            lte: new Date(to)
+            lte: new Date(new Date(to).setHours(23, 59, 59, 999))
           },
           wallet: {
             customer: {
@@ -253,7 +253,7 @@ export const getOutletSalesReport = async (req, res, next) => {
       const orders = await prisma.order.findMany({
         where: {
           outletId: Number(outletId),
-          status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED'] },
+          status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED', 'PENDING'] },
           createdAt: {
             gte: new Date(`${year}-01-01T00:00:00.000Z`),
             lte: new Date(`${year}-12-31T23:59:59.999Z`)
@@ -325,18 +325,9 @@ export const getOutletSalesReport = async (req, res, next) => {
   
       // Calculate profit/loss
       for (let m = 1; m <= 12; m++) {
-        // Total Revenue = Sales + Recharges
-        // BUT wait, if a customer pays for an order using wallet, it's double counting?
-        // Actually, many orders are CASH/UPI. 
-        // If we want "Money Inflow", we should count all payments + recharges?
-        // No, correct accounting: Revenue = Orders. (Accrual basis)
-        // Recharges are "Cash Inflow" but not "Revenue" until spent.
-        // However, for simplified tracking, usually people want to see both.
-        // Given the user's feedback "Not accurate", maybe they want to see all inflows.
-        // Let's stick to Revenue = Orders + (Wallet Recharges - Wallet Spent)? 
-        // That's complex. 
-        // Let's just provide the components in the response.
-        monthly[m].profit = (monthly[m].sales + monthly[m].recharges) - monthly[m].expenses;
+        // Total Revenue = Sales (Orders)
+        // Profit = Sales - Expenses
+        monthly[m].profit = monthly[m].sales - monthly[m].expenses;
       }
   
       // Format result
@@ -367,7 +358,7 @@ export const getOutletSalesReport = async (req, res, next) => {
       const ordersInPeriod = await prisma.order.findMany({
         where: {
           outletId: Number(outletId),
-          createdAt: { gte: new Date(from), lte: new Date(to) },
+          createdAt: { gte: new Date(from), lte: new Date(new Date(to).setHours(23, 59, 59, 999)) },
           customerId: { not: null }
         },
         select: { customerId: true }
@@ -404,9 +395,9 @@ export const getCustomerPerOrder = async (req, res, next) => {
     const orders = await prisma.order.findMany({
       where: {
         outletId: Number(outletId),
-        createdAt: { gte: new Date(from), lte: new Date(to) },
+        createdAt: { gte: new Date(from), lte: new Date(new Date(to).setHours(23, 59, 59, 999)) },
         customerId: { not: null },
-        status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED'] }
+        status: { in: ['DELIVERED', 'PARTIALLY_DELIVERED', 'PENDING'] }
       },
       select: { customerId: true, createdAt: true, id: true }
     });

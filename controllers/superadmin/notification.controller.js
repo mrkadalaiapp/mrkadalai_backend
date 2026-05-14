@@ -94,10 +94,41 @@ export const cancelScheduledNotification = async (req, res) => {
   }
 };
 
-// Send immediate notification (for testing)
+// Configure multer for notification image upload
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed"), false);
+    }
+    cb(null, true);
+  },
+}).single("image");
+
+import { uploadImage } from "../../config/s3.js";
+import multer from "multer";
+
+export const uploadNotificationImage = async (req, res) => {
+  try {
+    upload(req, res, async (err) => {
+      if (err) return res.status(400).json({ success: false, message: "Image upload failed", error: err.message });
+      if (!req.file) return res.status(400).json({ success: false, message: "No image file provided" });
+
+      const imageUrl = await uploadImage(req.file.buffer, req.file.originalname, req.file.mimetype);
+      res.status(200).json({ success: true, imageUrl });
+    });
+  } catch (error) {
+    console.error("Error in uploadNotificationImage:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+// Send immediate notification
 export const sendImmediateNotification = async (req, res) => {
   try {
-    const { title, message, outletId } = req.body;
+    const { title, message, outletId, type, imageUrl } = req.body;
 
     if (!title || !message || !outletId) {
       return res.status(400).json({
@@ -120,8 +151,6 @@ export const sendImmediateNotification = async (req, res) => {
       }
     });
 
-    console.log(deviceTokens)
-
     if (deviceTokens.length === 0) {
       return res.status(404).json({
         success: false,
@@ -131,13 +160,13 @@ export const sendImmediateNotification = async (req, res) => {
 
     const tokens = deviceTokens.map(dt => dt.deviceToken);
 
-    // Send push notifications
+    // Send push notifications with metadata
     const results = await fcmService.sendBulkPushNotifications(tokens, title, message, {
       outletId: parseInt(outletId),
-      type: 'immediate'
+      type: type || 'GENERAL',
+      imageUrl: imageUrl || undefined,
+      timestamp: new Date().toISOString()
     });
-
-    console.log(results)
 
     res.status(200).json({
       success: true,

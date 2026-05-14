@@ -23,7 +23,8 @@ import {
   sendImmediateNotification, 
   getNotificationStats,
   testFCMService,
-  testSingleDeviceNotification
+  testSingleDeviceNotification,
+  uploadNotificationImage
 } from '../controllers/superadmin/notification.controller.js';
 
 const superadminRouter = express.Router();
@@ -114,6 +115,7 @@ superadminRouter.post('/notifications/schedule', restrictToSuperAdminOrAdmin, cr
 superadminRouter.get('/notifications/scheduled/:outletId', restrictToSuperAdminOrAdmin, getScheduledNotifications);
 superadminRouter.delete('/notifications/scheduled/:notificationId', restrictToSuperAdminOrAdmin, cancelScheduledNotification);
 superadminRouter.post('/notifications/send-immediate', restrictToSuperAdminOrAdmin, sendImmediateNotification);
+superadminRouter.post('/notifications/upload-image', restrictToSuperAdminOrAdmin, uploadNotificationImage);
 superadminRouter.get('/notifications/stats/:outletId', restrictToSuperAdminOrAdmin, getNotificationStats);
 
 // FCM Test Routes
