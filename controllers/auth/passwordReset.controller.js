@@ -32,6 +32,7 @@ export const requestPasswordReset = async (req, res) => {
     });
 
     if (!user) {
+      console.log(`[PasswordReset] Request for non-existent email: ${email}`);
       // Return 200 anyway for security (prevent email enumeration)
       return res.status(200).json({ message: 'If the email exists, an OTP has been sent.' });
     }
@@ -48,6 +49,7 @@ export const requestPasswordReset = async (req, res) => {
         expiresAt,
       },
     });
+    console.log(`[PasswordReset] OTP generated and saved for ${email}: ${otp}`);
 
     // Send email via Gmail
     const mailOptions = {
@@ -70,7 +72,9 @@ export const requestPasswordReset = async (req, res) => {
       `,
     };
 
+    console.log(`[PasswordReset] Attempting to send email to ${email}...`);
     await transporter.sendMail(mailOptions);
+    console.log(`[PasswordReset] Email successfully sent to ${email}`);
 
     res.status(200).json({ message: 'If the email exists, an OTP has been sent.' });
   } catch (error) {
