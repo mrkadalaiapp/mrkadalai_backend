@@ -18,6 +18,7 @@ export const getTickets = async (req, res, next) => {
         id: true,
         name: true,
         email: true,
+        phone: true,
         customerInfo: {
           select: {
             id: true,
@@ -46,6 +47,7 @@ export const getTickets = async (req, res, next) => {
         createdAt: ticket.createdAt,
         customerName: user.name,
         customerEmail: user.email,
+        customerPhone: user.phone || 'N/A',
         resolutionNote: ticket.resolutionNote,
         resolvedAt: ticket.resolvedAt
       })) || []
