@@ -40,8 +40,24 @@ export const createInventoryItem = async (req, res) => {
     const existing = await prisma.inventoryItem.findFirst({
       where: { outletId: parseInt(outletId), itemName: itemName.trim() },
     });
+
     if (existing) {
-      return res.status(400).json({ message: `Item "${itemName}" already exists in inventory` });
+      if (existing.status === 'INACTIVE') {
+        // Reactivate and update the soft-deleted item
+        const updatedItem = await prisma.inventoryItem.update({
+          where: { id: existing.id },
+          data: {
+            status: 'ACTIVE',
+            itemCategory,
+            stockUnit: stockUnit.trim(),
+            reorderThreshold: parseFloat(reorderThreshold) || 0,
+            costPerUnit: parseFloat(costPerUnit) || 0,
+          },
+        });
+        return res.status(200).json({ message: "Inventory item reactivated and updated", item: updatedItem });
+      } else {
+        return res.status(400).json({ message: `Item "${itemName}" already exists in inventory` });
+      }
     }
 
     const item = await prisma.inventoryItem.create({
