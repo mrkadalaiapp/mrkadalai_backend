@@ -54,8 +54,17 @@ export const addManualOrder = async (req, res) => {
   }
 
   try {
+    const parsedOutletId = parseInt(outletId, 10);
+    const parsedTotalAmount = parseFloat(totalAmount);
+    const parsedItems = items.map(item => ({
+      ...item,
+      productId: parseInt(item.productId, 10),
+      quantity: parseInt(item.quantity, 10),
+      unitPrice: parseFloat(item.unitPrice),
+    }));
+
     // ── Recipe-based availability check ──
-    const shortages = await checkRecipeAvailability(items, outletId);
+    const shortages = await checkRecipeAvailability(parsedItems, parsedOutletId);
     if (shortages.length > 0) {
       return res.status(400).json({
         message: "Insufficient inventory for order",
@@ -82,10 +91,10 @@ export const addManualOrder = async (req, res) => {
           isPreOrder: false,
           deliveredAt: new Date(),
           items: {
-            create: items.map((item) => ({
-              productId: parseInt(item.productId, 10),
-              quantity: parseInt(item.quantity, 10),
-              unitPrice: parseFloat(item.unitPrice),
+            create: parsedItems.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
               status: "DELIVERED",
             })),
           },
@@ -94,7 +103,7 @@ export const addManualOrder = async (req, res) => {
       });
 
       // ── Recipe-based inventory deduction ──
-      for (const item of items) {
+      for (const item of parsedItems) {
         const recipe = await tx.productRecipe.findMany({
           where: { productId: item.productId },
           include: { inventoryItem: true },
