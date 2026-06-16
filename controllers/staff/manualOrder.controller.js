@@ -67,10 +67,13 @@ export const addManualOrder = async (req, res) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      const parsedOutletId = parseInt(outletId, 10);
+      const parsedTotalAmount = parseFloat(totalAmount);
+
       const createdOrder = await tx.order.create({
         data: {
-          outletId,
-          totalAmount,
+          outletId: parsedOutletId,
+          totalAmount: parsedTotalAmount,
           paymentMethod,
           status: "DELIVERED",
           type: "MANUAL",
@@ -80,9 +83,9 @@ export const addManualOrder = async (req, res) => {
           deliveredAt: new Date(),
           items: {
             create: items.map((item) => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
+              productId: parseInt(item.productId, 10),
+              quantity: parseInt(item.quantity, 10),
+              unitPrice: parseFloat(item.unitPrice),
               status: "DELIVERED",
             })),
           },

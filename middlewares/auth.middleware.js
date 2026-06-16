@@ -4,7 +4,8 @@ import prisma from '../prisma/client.js';
 
 export const authenticateToken = async (req, res, next) => {
   try {
-    const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+    const authHeader = req.headers.authorization;
+    const token = (authHeader && authHeader.split(' ')[1]) || req.cookies.token;
     if (!token) {
       return res.status(401).json({ message: 'Access denied. No token provided.' });
     }
