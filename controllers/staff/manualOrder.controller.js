@@ -136,7 +136,7 @@ export const addManualOrder = async (req, res) => {
     res.status(201).json({ message: "Manual order created", order });
   } catch (error) {
     console.error("Error creating manual order:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Server Error: " + error.message, stack: error.stack });
   }
 };
 
