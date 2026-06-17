@@ -131,6 +131,8 @@ export const addManualOrder = async (req, res) => {
       }
 
       return createdOrder;
+    }, {
+      timeout: 30000, // Increase timeout to 30 seconds
     });
 
     res.status(201).json({ message: "Manual order created", order });
