@@ -4,7 +4,7 @@ import { outletAddStaff,getOutletStaff,outletStaffPermission,outletDeleteStaff,o
 import { getProducts,addProduct,deleteProduct, updateProduct } from '../controllers/superadmin/product.controller.js';
 import { outletTotalOrders } from '../controllers/superadmin/order.controller.js';
 import { getStocks,addStock,deductStock,stockHistory} from '../controllers/superadmin/inventory.controller.js';
-import { getExpenses, addExpense, uploadBillImage, getExpenseByDate, getExpenseCategories, createExpenseCategory, deleteExpenseCategory, getExpenseNames, createExpenseName, deleteExpenseName, getVendors, createVendor, deleteVendor } from '../controllers/superadmin/expense.controller.js';
+import { getExpenses, addExpense, updateExpense, deleteExpense, uploadBillImage, getExpenseByDate, getExpenseCategories, createExpenseCategory, deleteExpenseCategory, getExpenseNames, createExpenseName, deleteExpenseName, getVendors, createVendor, deleteVendor } from '../controllers/superadmin/expense.controller.js';
 import { getInventoryItems, createInventoryItem, updateInventoryItem, deleteInventoryItem, manualAddStock, manualDeductStock, getInventoryItemHistory } from '../controllers/superadmin/inventoryItem.controller.js';
 import { getProductRecipe, saveProductRecipe, deleteRecipeRow } from '../controllers/superadmin/recipe.controller.js';
 import { getCustomersWithWallet,getRechargeHistoryByOutlet,getOrdersPaidViaWallet } from '../controllers/superadmin/wallet.controller.js';
@@ -77,6 +77,8 @@ superadminRouter.delete('/outlets/products/recipe/:recipeId', restrictToSuperAdm
 
 //Expense Management
 superadminRouter.post('/outlets/add-expenses/', restrictToSuperAdminOrAdmin, uploadBillImage, addExpense);
+superadminRouter.put('/outlets/update-expense/:id', restrictToSuperAdminOrAdmin, updateExpense);
+superadminRouter.delete('/outlets/delete-expense/:id', restrictToSuperAdminOrAdmin, deleteExpense);
 superadminRouter.get('/outlets/get-expenses/:outletId/', restrictToSuperAdminOrAdmin, getExpenses);
 superadminRouter.post('/outlets/get-expense-by-date/', restrictToSuperAdminOrAdmin, getExpenseByDate);
 // Expense Masters
