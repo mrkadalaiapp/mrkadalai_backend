@@ -554,6 +554,7 @@ enum Category {
   Starters
   Desserts
   Beverages
+  Combo
 }
 
 enum TicketStatus {

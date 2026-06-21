@@ -124,7 +124,7 @@ export const getNewCustomersTrend = async (req, res, next) => {
     }
 };
 
-// Category Breakdown - Meals, Starters, Desserts, etc.
+// Category Breakdown - Meals, Starters, Desserts, Beverages, Combo
 export const getCategoryBreakdown = async (req, res, next) => {
     const { outletId } = req.params;
     const { from, to } = req.body;
