@@ -6,21 +6,30 @@ const prisma = new PrismaClient();
 
 console.log(
   '[SMTP] GMAIL_USER configured:',
-  !!process.env.GMAIL_USER
+  process.env.GMAIL_USER
 );
 
 console.log(
   '[SMTP] GMAIL_APP_PASSWORD configured:',
-  !!process.env.GMAIL_APP_PASSWORD
+  process.env.GMAIL_APP_PASSWORD
 );
 
 // Configure the Gmail transporter
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
+});
+transporter.verify((error) => {
+  if (error) {
+    console.error('[SMTP] Connection failed:', error);
+  } else {
+    console.log('[SMTP] Server is ready to accept messages');
+  }
 });
 
 // Helper to generate a 6 digit OTP
