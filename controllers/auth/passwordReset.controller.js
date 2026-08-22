@@ -3,31 +3,31 @@ import nodemailer from 'nodemailer';
 import bcrypt from 'bcrypt';
 import dns from 'dns';
 
+const dnsPromises = dns.promises;
 const prisma = new PrismaClient();
 
-console.log(
-  '[SMTP] GMAIL_USER configured:',
-  !!process.env.GMAIL_USER
-);
-
-console.log(
-  '[SMTP] GMAIL_APP_PASSWORD configured:',
-  !!process.env.GMAIL_APP_PASSWORD
-);
+let cachedIPv4Host = null;
 
 dns.setDefaultResultOrder('ipv4first');
 
 // Configure the Gmail transporter
+if (!cachedIPv4Host) {
+  const addresses = await dnsPromises.resolve4('smtp.gmail.com');
+  cachedIPv4Host = addresses[0];
+  console.log('[SMTP] Resolved smtp.gmail.com to IPv4:', cachedIPv4Host);
+}
+
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
+  host: cachedIPv4Host,
   port: 465,
   secure: true,
-  family: 4, // <-- force IPv4, skip IPv6 entirely
+  tls: { servername: 'smtp.gmail.com' },
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
 });
+
 transporter.verify((error) => {
   if (error) {
     console.error('[SMTP] Connection failed:', error);
