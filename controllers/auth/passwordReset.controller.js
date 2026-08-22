@@ -1,24 +1,28 @@
 import { PrismaClient } from '@prisma/client';
 import nodemailer from 'nodemailer';
 import bcrypt from 'bcrypt';
+import dns from 'dns';
 
 const prisma = new PrismaClient();
 
 console.log(
   '[SMTP] GMAIL_USER configured:',
-  process.env.GMAIL_USER
+  !!process.env.GMAIL_USER
 );
 
 console.log(
   '[SMTP] GMAIL_APP_PASSWORD configured:',
-  process.env.GMAIL_APP_PASSWORD
+  !!process.env.GMAIL_APP_PASSWORD
 );
+
+dns.setDefaultResultOrder('ipv4first');
 
 // Configure the Gmail transporter
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
+  family: 4, // <-- force IPv4, skip IPv6 entirely
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
