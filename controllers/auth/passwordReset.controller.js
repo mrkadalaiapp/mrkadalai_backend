@@ -1,40 +1,11 @@
 import { PrismaClient } from '@prisma/client';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import bcrypt from 'bcrypt';
-import dns from 'dns';
 
-const dnsPromises = dns.promises;
 const prisma = new PrismaClient();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-let cachedIPv4Host = null;
-
-dns.setDefaultResultOrder('ipv4first');
-
-// Configure the Gmail transporter
-if (!cachedIPv4Host) {
-  const addresses = await dnsPromises.resolve4('smtp.gmail.com');
-  cachedIPv4Host = addresses[0];
-  console.log('[SMTP] Resolved smtp.gmail.com to IPv4:', cachedIPv4Host);
-}
-
-const transporter = nodemailer.createTransport({
-  host: cachedIPv4Host,
-  port: 465,
-  secure: true,
-  tls: { servername: 'smtp.gmail.com' },
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
-
-transporter.verify((error) => {
-  if (error) {
-    console.error('[SMTP] Connection failed:', error);
-  } else {
-    console.log('[SMTP] Server is ready to accept messages');
-  }
-});
+console.log('[Resend] API key configured:', !!process.env.RESEND_API_KEY);
 
 // Helper to generate a 6 digit OTP
 const generateOTP = () => {
@@ -50,9 +21,7 @@ export const requestPasswordReset = async (req, res) => {
     }
 
     // Check if user exists
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
       console.log(`[PasswordReset] Request for non-existent email: ${email}`);
@@ -66,17 +35,14 @@ export const requestPasswordReset = async (req, res) => {
 
     // Save to database
     await prisma.passwordReset.create({
-      data: {
-        email,
-        otp,
-        expiresAt,
-      },
+      data: { email, otp, expiresAt },
     });
     console.log(`[PasswordReset] OTP generated and saved for ${email}: ${otp}`);
 
-    // Send email via Gmail
-    const mailOptions = {
-      from: `"Mr Kadalai App" <${process.env.GMAIL_USER}>`,
+    console.log(`[PasswordReset] Attempting to send email to ${email}...`);
+
+    const { data, error } = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'Mr Kadalai App <onboarding@resend.dev>',
       to: email,
       subject: 'Your Password Reset OTP',
       text: `Your OTP (One Time Password) for resetting your Mr Kadalai Mobile App password is: ${otp}. It will expire in 10 minutes.\n\nIf you did not request this, please safely ignore this email.`,
@@ -93,11 +59,14 @@ export const requestPasswordReset = async (req, res) => {
             <p style="color: #999; font-size: 12px;">If you didn't request a password reset, you can safely ignore this email.</p>
         </div>
       `,
-    };
+    });
 
-    console.log(`[PasswordReset] Attempting to send email to ${email}...`);
-    await transporter.sendMail(mailOptions);
-    console.log(`[PasswordReset] Email successfully sent to ${email}`);
+    if (error) {
+      console.error('[Resend] Email send failed:', error);
+      return res.status(500).json({ error: 'Failed to send reset email' });
+    }
+
+    console.log(`[PasswordReset] Email successfully sent to ${email}, id: ${data.id}`);
 
     res.status(200).json({ message: 'If the email exists, an OTP has been sent.' });
   } catch (error) {
@@ -105,6 +74,8 @@ export const requestPasswordReset = async (req, res) => {
     res.status(500).json({ error: 'Internal server error while processing request' });
   }
 };
+
+// verifyResetOtp and resetPassword stay exactly the same — unchanged below
 
 export const verifyResetOtp = async (req, res) => {
   try {
@@ -119,9 +90,7 @@ export const verifyResetOtp = async (req, res) => {
       where: {
         email,
         otp,
-        expiresAt: {
-          gt: new Date(), // Has not expired yet
-        },
+        expiresAt: { gt: new Date() },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -145,7 +114,7 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ error: 'Missing required configuration fields' });
     }
 
-    // Final security check: verify the OTP directly during reset 
+    // Final security check: verify the OTP directly during reset
     const resetRecord = await prisma.passwordReset.findFirst({
       where: {
         email,
@@ -170,9 +139,7 @@ export const resetPassword = async (req, res) => {
     });
 
     // Invalidate ALL existing reset tokens for this user so they can't be reused
-    await prisma.passwordReset.deleteMany({
-      where: { email },
-    });
+    await prisma.passwordReset.deleteMany({ where: { email } });
 
     res.status(200).json({ message: 'Password has been successfully reset' });
   } catch (error) {
